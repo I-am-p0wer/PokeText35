@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>35文字分リアルタイム計算エディタ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font (JetBrains Mono for monospace alignment) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', '"Courier New"', 'monospace'],
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        /* Sync styling between textarea and backdrop for precise line alignment */
+        .editor-textarea {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.75rem; /* 28px */
+            tab-size: 4;
+            letter-spacing: 0px;
+        }
+
+        .line-number {
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.75rem; /* 28px */
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-20 px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 text-white p-2 rounded-lg shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-file-signature text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-white">35文字分カウンターエディタ</h1>
+                <p class="text-xs text-slate-400">全角＝2文字分 / 半角・スペース＝1文字分</p>
+            </div>
+        </div>
+
+        <!-- Controls / Actions -->
+        <div class="flex items-center flex-wrap gap-3">
+            <!-- Target limit setting -->
+            <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+                <label for="targetLimit" class="text-slate-400 mr-2 whitespace-nowrap">目標上限:</label>
+                <input type="number" id="targetLimit" value="35" min="1" max="200" 
+                    class="w-14 bg-slate-900 text-indigo-400 font-bold font-mono text-center rounded border border-slate-700 focus:outline-none focus:border-indigo-500 py-0.5">
+                <span class="text-slate-400 ml-1">文字分</span>
+            </div>
+
+            <!-- Auto Wrap Button -->
+            <button id="autoWrapBtn" class="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 hover:border-indigo-500 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                <i class="fa-solid fa-arrows-split-up-and-left text-sm"></i>
+                <span>自動整形 (35文字分で改行)</span>
+            </button>
+
+            <!-- Copy Text Button -->
+            <button id="copyBtn" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition active:scale-95">
+                <i class="fa-solid fa-copy"></i>
+                <span>コピー</span>
+            </button>
+
+            <!-- Clear Button -->
+            <button id="clearBtn" class="flex items-center gap-1.5 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-300 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>消去</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-[1920px] w-full mx-auto p-3 md:p-4 gap-4">
+
+        <!-- Left Column: Input Textarea Area -->
+        <section class="flex-1 flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl relative">
+            <!-- Textarea Header Toolbar -->
+            <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2 flex justify-between items-center text-xs text-slate-400">
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-keyboard text-indigo-400"></i> テキスト入力領域
+                </span>
+                <span id="overallStats" class="font-mono text-slate-300">
+                    全 0 行 | 総カウント: 0 / 0 文字分
+                </span>
+            </div>
+
+            <!-- Text Area Container -->
+            <div class="flex-1 relative flex overflow-hidden">
+                <!-- Sync Scroller wrapper -->
+                <div id="editorScrollContainer" class="flex-1 flex overflow-y-auto overflow-x-auto relative">
+                    <!-- Line Numbers Left Column -->
+                    <div id="lineNumbers" class="select-none bg-slate-900/50 border-r border-slate-800/80 text-slate-600 px-3 py-4 text-right min-w-[3rem] font-mono text-sm leading-[1.75rem] space-y-0">
+                        1
+                    </div>
+
+                    <!-- Actual Textarea -->
+                    <textarea id="editorTextarea" 
+                        class="editor-textarea flex-1 bg-transparent text-slate-100 p-4 border-none focus:outline-none resize-none min-h-full whitespace-pre font-mono text-sm leading-[1.75rem] tracking-normal"
+                        placeholder="ここに文章を入力してください...&#10;&#10;【計算ルール】&#10;・全角文字（あいうえお, 漢字, 記号）：2文字分&#10;・半角英数字, 半角スペース, 記号：1文字分&#10;&#10;例: A very high-grade Ball that offers -> 35文字分"
+                        spellcheck="false"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Column: Line Breakdown & Progress Metrics -->
+        <section class="w-full md:w-96 lg:w-[420px] flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+            <!-- Sidebar Header -->
+            <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
+                <h2 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-bar text-indigo-400"></i> 行ごとの文字分分析
+                </h2>
+                <div class="flex gap-2 text-[10px]">
+                    <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> 35度度</span>
+                    <span class="flex items-center gap-1 text-sky-400"><span class="w-2 h-2 rounded-full bg-sky-500 inline-block"></span> 未満</span>
+                    <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> 超過</span>
+                </div>
+            </div>
+
+            <!-- Line List View -->
+            <div id="lineAnalysisList" class="flex-1 overflow-y-auto p-3 space-y-2.5">
+                <!-- Dynamic Content Rendered via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Notification Toast Container -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-16 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toastMsg">通知メッセージ</span>
+    </div>
+
+    <script>
+        // DOM Elements
+        const editorTextarea = document.getElementById('editorTextarea');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const lineAnalysisList = document.getElementById('lineAnalysisList');
+        const targetLimitInput = document.getElementById('targetLimit');
+        const overallStats = document.getElementById('overallStats');
+        const copyBtn = document.getElementById('copyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const autoWrapBtn = document.getElementById('autoWrapBtn');
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toastMsg');
+
+        // Initial default state
+        let targetLimit = parseInt(targetLimitInput.value, 10) || 35;
+
+        /**
+         * Calculate character units for a string.
+         * - Japanese / Full-width: 2 units
+         * - Half-width / Spaces: 1 unit
+         */
+        function calculateUnits(str) {
+            let units = 0;
+            for (let i = 0; i < str.length; i++) {
+                const charCode = str.charCodeAt(i);
+                // ASCII range + Half-width Katakana (0xFF61 - 0xFF9F)
+                if ((charCode >= 0x0000 && charCode <= 0x007E) || (charCode >= 0xFF61 && charCode <= 0xFF9F)) {
+                    units += 1;
+                } else {
+                    units += 2;
+                }
+            }
+            return units;
+        }
+
+        /**
+         * Show toast message
+         */
+        function showToast(message) {
+            toastMsg.textContent = message;
+            toast.classList.remove('translate-y-16', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-16', 'opacity-0');
+            }, 2500);
+        }
+
+        /**
+         * Render editor metrics, line numbers, and line breakdown
+         */
+        function updateEditor() {
+            const text = editorTextarea.value;
+            const lines = text.split('\n');
+            targetLimit = parseInt(targetLimitInput.value, 10) || 35;
+
+            // Update Line Numbers
+            const totalLines = lines.length;
+            let lineNumHTML = '';
+            for (let i = 1; i <= totalLines; i++) {
+                lineNumHTML += `${i}<br>`;
+            }
+            lineNumbers.innerHTML = lineNumHTML;
+
+            // Render Line Analysis List & calculate totals
+            lineAnalysisList.innerHTML = '';
+            let totalUnits = 0;
+
+            lines.forEach((lineText, index) => {
+                const units = calculateUnits(lineText);
+                totalUnits += units;
+
+                const lineNum = index + 1;
+                const percentage = Math.min(Math.round((units / targetLimit) * 100), 100);
+
+                // Determine Status Color
+                let badgeClass = '';
+                let progressBg = '';
+                let borderClass = 'border-slate-800/80';
+                let statusText = '';
+
+                if (units === targetLimit) {
+                    // Exact match
+                    badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+                    progressBg = 'bg-emerald-500';
+                    borderClass = 'border-emerald-500/40 bg-emerald-950/10';
+                    statusText = 'ぴったり';
+                } else if (units > targetLimit) {
+                    // Exceeded
+                    badgeClass = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+                    progressBg = 'bg-rose-500';
+                    borderClass = 'border-rose-500/40 bg-rose-950/10';
+                    statusText = `+${units - targetLimit} オーバー`;
+                } else {
+                    // Under
+                    badgeClass = 'bg-sky-500/20 text-sky-400 border-sky-500/30';
+                    progressBg = 'bg-sky-500';
+                    statusText = `残り ${targetLimit - units}`;
+                }
+
+                // Card Container for Line
+                const card = document.createElement('div');
+                card.className = `p-2.5 rounded-lg border ${borderClass} bg-slate-900/60 hover:bg-slate-900 transition flex flex-col gap-1.5`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="font-mono text-slate-400 font-medium flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded bg-slate-800 flex items-center justify-center text-[11px] text-slate-300 font-bold">${lineNum}</span>
+                            行目
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded border ${badgeClass} font-medium">${statusText}</span>
+                            <span class="font-mono font-bold ${units > targetLimit ? 'text-rose-400' : (units === targetLimit ? 'text-emerald-400' : 'text-slate-200')}">
+                                ${units} <span class="text-slate-500 font-normal">/ ${targetLimit}</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                        <div class="${progressBg} h-1.5 rounded-full transition-all duration-200" style="width: ${percentage}%"></div>
+                    </div>
+
+                    <!-- Preview Text snippet -->
+                    <div class="font-mono text-[11px] text-slate-400 truncate bg-slate-950/50 px-2 py-1 rounded border border-slate-800/50 mt-0.5">
+                        ${lineText.length > 0 ? escapeHtml(lineText) : '<span class="text-slate-600 font-sans italic">（空行）</span>'}
+                    </div>
+                `;
+
+                lineAnalysisList.appendChild(card);
+            });
+
+            // Overall Summary
+            overallStats.innerHTML = `全 <span class="text-indigo-400 font-bold">${totalLines}</span> 行 | 総カウント: <span class="text-indigo-400 font-bold">${totalUnits}</span> 文字分`;
+        }
+
+        /**
+         * Escape HTML to prevent injection in code preview
+         */
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /**
+         * Auto-wrap algorithm that breaks lines precisely at targetLimit (35 units)
+         */
+        function autoWrapText() {
+            const currentText = editorTextarea.value;
+            if (!currentText.trim()) return;
+
+            const lines = currentText.split('\n');
+            const newLines = [];
+
+            lines.forEach(line => {
+                let currentChunk = '';
+                let currentUnits = 0;
+
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    const charUnits = calculateUnits(char);
+
+                    if (currentUnits + charUnits > targetLimit) {
+                        newLines.push(currentChunk);
+                        currentChunk = char;
+                        currentUnits = charUnits;
+                    } else {
+                        currentChunk += char;
+                        currentUnits += charUnits;
+                    }
+                }
+                newLines.push(currentChunk);
+            });
+
+            editorTextarea.value = newLines.join('\n');
+            updateEditor();
+            showToast(`${targetLimit}文字分ごとに自動改行しました！`);
+        }
+
+        // --- Event Listeners ---
+
+        // Input listener for real-time counting
+        editorTextarea.addEventListener('input', updateEditor);
+
+        // Target limit update listener
+        targetLimitInput.addEventListener('input', () => {
+            if (targetLimitInput.value < 1) targetLimitInput.value = 1;
+            updateEditor();
+        });
+
+        // Auto wrap button
+        autoWrapBtn.addEventListener('click', autoWrapText);
+
+        // Copy button using execCommand fallback
+        copyBtn.addEventListener('click', () => {
+            editorTextarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('クリップボードにコピーしました！');
+            } catch (err) {
+                showToast('コピーに失敗しました');
+            }
+            window.getSelection().removeAllRanges();
+        });
+
+        // Clear button
+        clearBtn.addEventListener('click', () => {
+            if (editorTextarea.value && confirm('テキストをすべて消去しますか？')) {
+                editorTextarea.value = '';
+                updateEditor();
+                showToast('テキストを消去しました');
+            }
+        });
+
+        // Default sample text loading on first visit
+        window.onload = function() {
+            editorTextarea.value = "A very high-grade Ball that offers\na higher Pokemon catch rate than\na great ball";
+            updateEditor();
+        };
+    </script>
+</body>
+</html>
