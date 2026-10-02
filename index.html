@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>35文字分リアルタイム計算エディタ</title>
-    <!-- Tailwind CSS CDN -->
+    <title>35文字分計算 & TBLコード相互変換エディタ</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome for Icons -->
+
     <link rel="icon" href="favicon.ico">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Font (JetBrains Mono for monospace alignment) -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-    
+
     <script>
         tailwind.config = {
             theme: {
@@ -27,6 +27,7 @@
             }
         }
     </script>
+
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -34,364 +35,1592 @@
             color: #f8fafc;
         }
 
-        /* Sync styling between textarea and backdrop for precise line alignment */
         .editor-textarea {
             font-family: 'JetBrains Mono', monospace;
-            line-height: 1.75rem; /* 28px */
+            line-height: 1.75rem;
             tab-size: 4;
-            letter-spacing: 0px;
+            letter-spacing: 0;
         }
 
         .line-number {
             font-family: 'JetBrains Mono', monospace;
-            line-height: 1.75rem; /* 28px */
+            line-height: 1.75rem;
         }
 
-        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
+
         ::-webkit-scrollbar-track {
             background: #1e293b;
         }
+
         ::-webkit-scrollbar-thumb {
             background: #475569;
             border-radius: 4px;
         }
+
         ::-webkit-scrollbar-thumb:hover {
             background: #64748b;
         }
+
+        .char-btn {
+            background-color: #1e293b;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            padding: 3px 9px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .char-btn:hover {
+            background-color: #334155;
+            color: #fff;
+            border-color: #6366f1;
+        }
+
+        .char-btn:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
+
 <body class="min-h-screen flex flex-col bg-slate-900 text-slate-100">
 
     <!-- Header -->
     <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-20 px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+
         <div class="flex items-center gap-3">
             <div class="bg-indigo-600 text-white p-2 rounded-lg shadow-lg shadow-indigo-500/20">
-                <i class="fa-solid fa-file-signature text-xl"></i>
+                <i class="fa-solid fa-file-code text-xl"></i>
             </div>
+
             <div>
-                <h1 class="font-bold text-lg leading-tight text-white">35文字分カウンターエディタ</h1>
-                <p class="text-xs text-slate-400">全角＝2文字分 / 半角・スペース＝1文字分</p>
+                <h1 class="font-bold text-lg leading-tight text-white">
+                    35文字分カウンター & TBLコード変換
+                </h1>
+                <p class="text-xs text-slate-400">
+                    リアルタイム文字分計算（全角2/半角1） ⇔ TBL 16進数相互変換
+                </p>
             </div>
         </div>
 
-        <!-- Controls / Actions -->
-        <div class="flex items-center flex-wrap gap-3">
-            <!-- Target limit setting -->
+        <div class="flex items-center flex-wrap gap-2.5">
+
+            <!-- Target limit -->
             <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
-                <label for="targetLimit" class="text-slate-400 mr-2 whitespace-nowrap">目標上限:</label>
-                <input type="number" id="targetLimit" value="35" min="1" max="200" 
+                <label for="targetLimit" class="text-slate-400 mr-2 whitespace-nowrap">
+                    目標上限:
+                </label>
+
+                <input
+                    type="number"
+                    id="targetLimit"
+                    value="35"
+                    min="1"
+                    max="200"
                     class="w-14 bg-slate-900 text-indigo-400 font-bold font-mono text-center rounded border border-slate-700 focus:outline-none focus:border-indigo-500 py-0.5">
+
                 <span class="text-slate-400 ml-1">文字分</span>
             </div>
 
-            <!-- Auto Wrap Button -->
-            <button id="autoWrapBtn" class="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 hover:border-indigo-500 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+            <!-- Auto wrap -->
+            <button
+                id="autoWrapBtn"
+                class="flex items-center gap-1.5 bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 hover:border-indigo-500 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+
                 <i class="fa-solid fa-arrows-split-up-and-left text-sm"></i>
                 <span>自動整形 (35文字分で改行)</span>
             </button>
 
-            <!-- Copy Text Button -->
-            <button id="copyBtn" class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition active:scale-95">
+            <!-- Text copy -->
+            <button
+                id="copyBtn"
+                class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition active:scale-95">
+
                 <i class="fa-solid fa-copy"></i>
                 <span>コピー</span>
             </button>
 
-            <!-- Clear Button -->
-            <button id="clearBtn" class="flex items-center gap-1.5 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-300 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+            <!-- Clear -->
+            <button
+                id="clearBtn"
+                class="flex items-center gap-1.5 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-300 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+
                 <i class="fa-solid fa-trash-can"></i>
                 <span>消去</span>
             </button>
+
         </div>
     </header>
 
-    <!-- Main Workspace -->
-    <main class="flex-1 flex flex-col md:flex-row overflow-hidden max-w-[1920px] w-full mx-auto p-3 md:p-4 gap-4">
 
-        <!-- Left Column: Input Textarea Area -->
-        <section class="flex-1 flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl relative">
-            <!-- Textarea Header Toolbar -->
-            <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2 flex justify-between items-center text-xs text-slate-400">
-                <span class="flex items-center gap-2">
-                    <i class="fa-solid fa-keyboard text-indigo-400"></i> テキスト入力領域
-                </span>
-                <span id="overallStats" class="font-mono text-slate-300">
-                    全 0 行 | 総カウント: 0 / 0 文字分
-                </span>
+    <!-- Main -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden max-w-[1920px] w-full mx-auto p-3 md:p-4 gap-4">
+
+        <!-- Left -->
+        <section class="flex-1 flex flex-col gap-4 overflow-hidden">
+
+            <!-- Editor -->
+            <div class="flex-1 flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl relative min-h-[300px]">
+
+                <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2 flex flex-wrap justify-between items-center text-xs text-slate-400 gap-2">
+
+                    <span class="flex items-center gap-2">
+                        <i class="fa-solid fa-keyboard text-indigo-400"></i>
+                        テキスト入力領域
+                    </span>
+
+                    <span id="overallStats" class="font-mono text-slate-300">
+                        全 0 行 | 総カウント: 0 / 0 文字分
+                    </span>
+
+                </div>
+
+
+                <!-- Special Character Palette -->
+                <div class="bg-slate-900/50 border-b border-slate-800/80 px-3 py-2 flex flex-wrap items-center gap-1.5">
+
+                    <span class="text-[11px] text-slate-400 font-medium mr-1 select-none flex items-center gap-1">
+                        <i class="fa-solid fa-icons text-indigo-400"></i>
+                        パレット:
+                    </span>
+
+                    <button
+                        class="char-btn !border-amber-500/50 !text-amber-300"
+                        onclick="insertChar('\\n')">
+                        \n
+                    </button>
+
+                    <button
+                        class="char-btn !border-amber-500/50 !text-amber-300"
+                        onclick="insertChar('\\p')">
+                        \p
+                    </button>
+
+                    <button
+                        class="char-btn !border-amber-500/50 !text-amber-300"
+                        onclick="insertChar('\\l')">
+                        \l
+                    </button>
+
+                </div>
+
+
+                <!-- Text area -->
+                <div class="flex-1 relative flex overflow-hidden">
+
+                    <div
+                        id="editorScrollContainer"
+                        class="flex-1 flex overflow-y-auto overflow-x-auto relative">
+
+                        <div
+                            id="lineNumbers"
+                            class="select-none bg-slate-900/50 border-r border-slate-800/80 text-slate-600 px-3 py-4 text-right min-w-[3rem] font-mono text-sm leading-[1.75rem]">
+                            1
+                        </div>
+
+                        <textarea
+                            id="editorTextarea"
+                            class="editor-textarea flex-1 bg-transparent text-slate-100 p-4 border-none focus:outline-none resize-none min-h-full whitespace-pre font-mono text-sm leading-[1.75rem] tracking-normal"
+                            placeholder="ここに文章を入力してください..."
+                            spellcheck="false"></textarea>
+
+                    </div>
+                </div>
             </div>
 
-            <!-- Text Area Container -->
-            <div class="flex-1 relative flex overflow-hidden">
-                <!-- Sync Scroller wrapper -->
-                <div id="editorScrollContainer" class="flex-1 flex overflow-y-auto overflow-x-auto relative">
-                    <!-- Line Numbers Left Column -->
-                    <div id="lineNumbers" class="select-none bg-slate-900/50 border-r border-slate-800/80 text-slate-600 px-3 py-4 text-right min-w-[3rem] font-mono text-sm leading-[1.75rem] space-y-0">
-                        1
+
+            <!-- Hex conversion -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex flex-col gap-3 shadow-xl">
+
+                <div class="flex items-center justify-between flex-wrap gap-2">
+
+                    <div class="flex items-center gap-2 text-xs font-bold text-slate-300">
+                        <i class="fa-solid fa-hashtag text-indigo-400"></i>
+                        <span>TBL 16進数コード (Hex)</span>
                     </div>
 
-                    <!-- Actual Textarea -->
-                    <textarea id="editorTextarea" 
-                        class="editor-textarea flex-1 bg-transparent text-slate-100 p-4 border-none focus:outline-none resize-none min-h-full whitespace-pre font-mono text-sm leading-[1.75rem] tracking-normal"
-                        placeholder="ここに文章を入力してください...&#10;&#10;【計算ルール】&#10;・全角文字（あいうえお, 漢字, 記号）：2文字分&#10;・半角英数字, 半角スペース, 記号：1文字分&#10;&#10;例: A very high-grade Ball that offers -> 35文字分"
-                        spellcheck="false"></textarea>
+                    <div class="flex items-center gap-2 flex-wrap">
+
+                        <!-- Auto encode -->
+                        <label class="inline-flex items-center cursor-pointer text-xs text-slate-400">
+
+                            <input
+                                type="checkbox"
+                                id="autoEncodeToggle"
+                                class="sr-only peer"
+                                checked>
+
+                            <div class="relative w-8 h-4 bg-slate-800 rounded-full
+                                peer peer-checked:after:translate-x-full
+                                after:content-['']
+                                after:absolute after:top-[2px] after:start-[2px]
+                                after:bg-white after:border-slate-300 after:border
+                                after:rounded-full after:h-3 after:w-3
+                                after:transition-all
+                                peer-checked:bg-indigo-600">
+                            </div>
+
+                            <span class="ms-2 select-none">
+                                リアルタイム変換
+                            </span>
+
+                        </label>
+
+
+                        <!-- Encode -->
+                        <button
+                            onclick="encodeText()"
+                            class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-2.5 py-1 rounded transition flex items-center gap-1 font-medium">
+
+                            <i class="fa-solid fa-arrow-down"></i>
+                            エンコード
+                        </button>
+
+
+                        <!-- Decode -->
+                        <button
+                            onclick="decodeHex()"
+                            class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs px-2.5 py-1 rounded transition flex items-center gap-1 font-medium">
+
+                            <i class="fa-solid fa-arrow-up"></i>
+                            デコード
+                        </button>
+
+
+                        <!-- Copy Hex -->
+                        <button
+                            id="copyHexBtn"
+                            onclick="copyHex()"
+                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-1 rounded transition flex items-center gap-1 font-medium">
+
+                            <i class="fa-solid fa-copy"></i>
+                            コピー
+                        </button>
+
+                    </div>
                 </div>
+
+
+                <textarea
+                    id="hexInput"
+                    class="w-full h-20 bg-slate-900 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-emerald-400 focus:outline-none focus:border-indigo-500 resize-y"
+                    placeholder="16進数コード（スペース区切り） 例: F1 F4 F2 F5 F3 F6"></textarea>
+
             </div>
+
         </section>
 
-        <!-- Right Column: Line Breakdown & Progress Metrics -->
-        <section class="w-full md:w-96 lg:w-[420px] flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
-            <!-- Sidebar Header -->
-            <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
-                <h2 class="text-xs font-bold text-slate-300 flex items-center gap-2">
-                    <i class="fa-solid fa-chart-bar text-indigo-400"></i> 行ごとの文字分分析
-                </h2>
-                <div class="flex gap-2 text-[10px]">
-                    <span class="flex items-center gap-1 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> 35度度</span>
-                    <span class="flex items-center gap-1 text-sky-400"><span class="w-2 h-2 rounded-full bg-sky-500 inline-block"></span> 未満</span>
-                    <span class="flex items-center gap-1 text-rose-400"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> 超過</span>
+
+        <!-- Right -->
+        <section class="w-full lg:w-[400px] flex flex-col gap-4">
+
+            <!-- Analysis -->
+            <div class="flex-1 flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl min-h-[320px]">
+
+                <div class="bg-slate-900/80 border-b border-slate-800 px-4 py-2.5 flex justify-between items-center">
+
+                    <h2 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-bar text-indigo-400"></i>
+                        行ごとの文字分分析
+                    </h2>
+
+                    <div class="flex gap-2 text-[10px]">
+
+                        <span class="flex items-center gap-1 text-emerald-400">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                            ぴったり
+                        </span>
+
+                        <span class="flex items-center gap-1 text-sky-400">
+                            <span class="w-2 h-2 rounded-full bg-sky-500 inline-block"></span>
+                            未満
+                        </span>
+
+                        <span class="flex items-center gap-1 text-rose-400">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                            超過
+                        </span>
+
+                    </div>
                 </div>
+
+                <div
+                    id="lineAnalysisList"
+                    class="flex-1 overflow-y-auto p-3 space-y-2.5 max-h-[420px]">
+                </div>
+
             </div>
 
-            <!-- Line List View -->
-            <div id="lineAnalysisList" class="flex-1 overflow-y-auto p-3 space-y-2.5">
-                <!-- Dynamic Content Rendered via JS -->
+
+            <!-- TBL -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+
+                <details class="group">
+
+                    <summary class="bg-slate-900/80 border-b border-slate-800/80 px-4 py-2.5 text-xs font-bold text-slate-300 flex justify-between items-center cursor-pointer select-none">
+
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-indigo-400"></i>
+                            TBL変換テーブル定義
+                        </span>
+
+                        <i class="fa-solid fa-chevron-down text-slate-500 group-open:rotate-180 transition-transform"></i>
+
+                    </summary>
+
+                    <div class="p-3 space-y-2">
+
+                        <p class="text-[11px] text-slate-400">
+                            ※『文字 = 16進数』の形式で記述・カスタム可能です。
+                        </p>
+
+                        <textarea
+                            id="tableInput"
+                            class="w-full h-40 bg-slate-900 border border-slate-800 rounded p-2 font-mono text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500"></textarea>
+
+                        <button
+                            onclick="loadTable()"
+                            class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-1.5 text-xs font-medium rounded transition flex items-center justify-center gap-1.5">
+
+                            <i class="fa-solid fa-rotate"></i>
+                            テーブル再読み込み
+                        </button>
+
+                    </div>
+
+                </details>
+
             </div>
+
         </section>
 
     </main>
 
-    <!-- Notification Toast Container -->
-    <div id="toast" class="fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-16 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+
+    <!-- Toast -->
+    <div
+        id="toast"
+        class="fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-16 opacity-0 transition-all duration-300 z-50 pointer-events-none">
+
         <i class="fa-solid fa-circle-check"></i>
         <span id="toastMsg">通知メッセージ</span>
+
     </div>
 
-    <script>
-        // DOM Elements
-        const editorTextarea = document.getElementById('editorTextarea');
-        const lineNumbers = document.getElementById('lineNumbers');
-        const lineAnalysisList = document.getElementById('lineAnalysisList');
-        const targetLimitInput = document.getElementById('targetLimit');
-        const overallStats = document.getElementById('overallStats');
-        const copyBtn = document.getElementById('copyBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const autoWrapBtn = document.getElementById('autoWrapBtn');
-        const toast = document.getElementById('toast');
-        const toastMsg = document.getElementById('toastMsg');
 
-        // Initial default state
-        let targetLimit = parseInt(targetLimitInput.value, 10) || 35;
+<script>
 
-        /**
-         * Calculate character units for a string.
-         * - Japanese / Full-width: 2 units
-         * - Half-width / Spaces: 1 unit
-         */
-        function calculateUnits(str) {
-            let units = 0;
-            for (let i = 0; i < str.length; i++) {
-                const charCode = str.charCodeAt(i);
-                // ASCII range + Half-width Katakana (0xFF61 - 0xFF9F)
-                if ((charCode >= 0x0000 && charCode <= 0x007E) || (charCode >= 0xFF61 && charCode <= 0xFF9F)) {
-                    units += 1;
-                } else {
-                    units += 2;
-                }
-            }
-            return units;
+// ============================================================
+// TBL
+// ============================================================
+
+const initialMappingText = `' ' = 00
+'À' = 01
+'Á' = 02
+'Â' = 03
+'Ç' = 04
+'È' = 05
+'É' = 06
+'Ê' = 07
+'Ë' = 08
+'Ì' = 09
+'Î' = 0B
+'Ï' = 0C
+'Ò' = 0D
+'Ó' = 0E
+'Ô' = 0F
+'Œ' = 10
+'Ù' = 11
+'Ú' = 12
+'Û' = 13
+'Ñ' = 14
+'ß' = 15
+'à' = 16
+'á' = 17
+'ç' = 19
+'è' = 1A
+'é' = 1B
+'ê' = 1C
+'ë' = 1D
+'ì' = 1E
+'î' = 20
+'ï' = 21
+'ò' = 22
+'ó' = 23
+'ô' = 24
+'œ' = 25
+'ù' = 26
+'ú' = 27
+'û' = 28
+'ñ' = 29
+'º' = 2A
+'ª' = 2B
+SUPER_ER = 2C
+'&' = 2D
+'+' = 2E
+LV = 34
+'=' = 35
+';' = 36
+'¿' = 51
+'¡' = 52
+PK = 53
+PKMN = 53 54
+POKEBLOCK = 55 56 57 58 59
+'Í' = 5A
+'%' = 5B
+'(' = 5C
+')' = 5D
+'â' = 68
+'í' = 6F
+UP_ARROW = 79
+DOWN_ARROW = 7A
+LEFT_ARROW = 7B
+RIGHT_ARROW = 7C
+SUPER_E = 84
+'<' = 85
+'>' = 86
+SUPER_RE = A0
+'0' = A1
+'1' = A2
+'2' = A3
+'3' = A4
+'4' = A5
+'5' = A6
+'6' = A7
+'7' = A8
+'8' = A9
+'9' = AA
+'!' = AB
+'?' = AC
+'.' = AD
+'-' = AE
+'·' = AF
+'…' = B0
+'“' = B1
+'”' = B2
+'‘' = B3
+'’' = B4
+'\\' = B4
+'♂' = B5
+'♀' = B6
+'¥' = B7
+',' = B8
+'×' = B9
+'/' = BA
+'A' = BB
+'B' = BC
+'C' = BD
+'D' = BE
+'E' = BF
+'F' = C0
+'G' = C1
+'H' = C2
+'I' = C3
+'J' = C4
+'K' = C5
+'L' = C6
+'M' = C7
+'N' = C8
+'O' = C9
+'P' = CA
+'Q' = CB
+'R' = CC
+'S' = CD
+'T' = CE
+'U' = CF
+'V' = D0
+'W' = D1
+'X' = D2
+'Y' = D3
+'Z' = D4
+'a' = D5
+'b' = D6
+'c' = D7
+'d' = D8
+'e' = D9
+'f' = DA
+'g' = DB
+'h' = DC
+'i' = DD
+'j' = DE
+'k' = DF
+'l' = E0
+'m' = E1
+'n' = E2
+'o' = E3
+'p' = E4
+'q' = E5
+'r' = E6
+'s' = E7
+'t' = E8
+'u' = E9
+'v' = EA
+'w' = EB
+'x' = EC
+'y' = ED
+'z' = EE
+'▶' = EF
+':' = F0
+'Ä' = F1
+'Ö' = F2
+'Ü' = F3
+'ä' = F4
+'ö' = F5
+'ü' = F6
+TALL_PLUS = FC 0C FB
+'$' = FF
+
+'あ' = 01
+'い' = 02
+'う' = 03
+'え' = 04
+'お' = 05
+'か' = 06
+'き' = 07
+'く' = 08
+'け' = 09
+'こ' = 0A
+'さ' = 0B
+'し' = 0C
+'す' = 0D
+'せ' = 0E
+'そ' = 0F
+'た' = 10
+'ち' = 11
+'つ' = 12
+'て' = 13
+'と' = 14
+'な' = 15
+'に' = 16
+'ぬ' = 17
+'ね' = 18
+'の' = 19
+'は' = 1A
+'ひ' = 1B
+'ふ' = 1C
+'へ' = 1D
+'ほ' = 1E
+'ま' = 1F
+'み' = 20
+'む' = 21
+'め' = 22
+'も' = 23
+'や' = 24
+'ゆ' = 25
+'よ' = 26
+'ら' = 27
+'り' = 28
+'る' = 29
+'れ' = 2A
+'ろ' = 2B
+'わ' = 2C
+'を' = 2D
+'ん' = 2E
+'ぁ' = 2F
+'ぃ' = 30
+'ぅ' = 31
+'ぇ' = 32
+'ぉ' = 33
+'ゃ' = 34
+'ゅ' = 35
+'ょ' = 36
+'が' = 37
+'ぎ' = 38
+'ぐ' = 39
+'げ' = 3A
+'ご' = 3B
+'ざ' = 3C
+'じ' = 3D
+'ず' = 3E
+'ぜ' = 3F
+'ぞ' = 40
+'だ' = 41
+'ぢ' = 42
+'づ' = 43
+'で' = 44
+'ど' = 45
+'ば' = 46
+'び' = 47
+'ぶ' = 48
+'べ' = 49
+'ぼ' = 4A
+'ぱ' = 4B
+'ぴ' = 4C
+'ぷ' = 4D
+'ぺ' = 4E
+'ぽ' = 4F
+'っ' = 50
+
+'ア' = 51
+'イ' = 52
+'ウ' = 53
+'エ' = 54
+'オ' = 55
+'カ' = 56
+'キ' = 57
+'ク' = 58
+'ケ' = 59
+'コ' = 5A
+'サ' = 5B
+'シ' = 5C
+'ス' = 5D
+'セ' = 5E
+'ソ' = 5F
+'タ' = 60
+'チ' = 61
+'ツ' = 62
+'テ' = 63
+'ト' = 64
+'ナ' = 65
+'ニ' = 66
+'ヌ' = 67
+'ネ' = 68
+'ノ' = 69
+'ハ' = 6A
+'ヒ' = 6B
+'フ' = 6C
+'ヘ' = 6D
+'ホ' = 6E
+'マ' = 6F
+'ミ' = 70
+'ム' = 71
+'メ' = 72
+'モ' = 73
+'ヤ' = 74
+'ユ' = 75
+'ヨ' = 76
+'ラ' = 77
+'リ' = 78
+'ル' = 79
+'レ' = 7A
+'ロ' = 7B
+'ワ' = 7C
+'ヲ' = 7D
+'ン' = 7E
+'ァ' = 7F
+'ィ' = 80
+'ゥ' = 81
+'ェ' = 82
+'ォ' = 83
+'ャ' = 84
+'ュ' = 85
+'ョ' = 86
+'ガ' = 87
+'ギ' = 88
+'グ' = 89
+'ゲ' = 8A
+'ゴ' = 8B
+'ザ' = 8C
+'ジ' = 8D
+'ズ' = 8E
+'ゼ' = 8F
+'ゾ' = 90
+'ダ' = 91
+'ヂ' = 92
+'ヅ' = 93
+'デ' = 94
+'ド' = 95
+'バ' = 96
+'ビ' = 97
+'ブ' = 98
+'ベ' = 99
+'ボ' = 9A
+'パ' = 9B
+'ピ' = 9C
+'プ' = 9D
+'ペ' = 9E
+'ポ' = 9F
+'ッ' = A0
+
+'　' = 00
+'！' = AB
+'？' = AC
+'。' = AD
+'ー' = AE
+'‥' = B0
+
+STRING = FD
+PLAYER = FD 01
+STR_VAR_1 = FD 02
+STR_VAR_2 = FD 03
+STR_VAR_3 = FD 04
+KUN = FD 05
+RIVAL = FD 06
+VERSION = FD 07
+EVIL_TEAM = FD 08
+GOOD_TEAM = FD 09
+EVIL_LEADER = FD 0A
+GOOD_LEADER = FD 0B
+EVIL_LEGENDARY = FD 0C
+GOOD_LEGENDARY = FD 0D
+
+NAME_END = FC 00
+DYNAMIC = F7
+
+COLOR = FC 01
+HIGHLIGHT = FC 02
+SHADOW = FC 03
+COLOR_HIGHLIGHT_SHADOW = FC 04
+PALETTE = FC 05
+FONT = FC 06
+RESET_FONT = FC 07
+PAUSE = FC 08
+PAUSE_UNTIL_PRESS = FC 09
+WAIT_SE = FC 0A
+PLAY_BGM = FC 0B
+ESCAPE = FC 0C
+SHIFT_RIGHT = FC 0D
+SHIFT_DOWN = FC 0E
+FILL_WINDOW = FC 0F
+PLAY_SE = FC 10
+CLEAR = FC 11
+SKIP = FC 12
+CLEAR_TO = FC 13
+MIN_LETTER_SPACING = FC 14
+JPN = FC 15
+ENG = FC 16
+PAUSE_MUSIC = FC 17
+RESUME_MUSIC = FC 18
+
+FONT_SMALL = FC 06 00
+FONT_NORMAL_COPY_1 = FC 06 01
+FONT_NORMAL = FC 06 02
+FONT_NORMAL_COPY_2 = FC 06 03
+FONT_MALE = FC 06 04
+FONT_FEMALE = FC 06 05
+
+A_BUTTON = F8 00
+B_BUTTON = F8 01
+L_BUTTON = F8 02
+R_BUTTON = F8 03
+START_BUTTON = F8 04
+SELECT_BUTTON = F8 05
+DPAD_UP = F8 06
+DPAD_DOWN = F8 07
+DPAD_LEFT = F8 08
+DPAD_RIGHT = F8 09
+DPAD_UPDOWN = F8 0A
+DPAD_LEFTRIGHT = F8 0B
+DPAD_ANY = F8 0C
+
+UP_ARROW_2 = F9 00
+DOWN_ARROW_2 = F9 01
+LEFT_ARROW_2 = F9 02
+RIGHT_ARROW_2 = F9 03
+PLUS = F9 04
+LV_2 = F9 05
+PP = F9 06
+ID = F9 07
+NO = F9 08
+UNDERSCORE = F9 09
+CIRCLE_1 = F9 0A
+CIRCLE_2 = F9 0B
+CIRCLE_3 = F9 0C
+CIRCLE_4 = F9 0D
+CIRCLE_5 = F9 0E
+CIRCLE_6 = F9 0F
+CIRCLE_7 = F9 10
+CIRCLE_8 = F9 11
+CIRCLE_9 = F9 12
+LEFT_PAREN = F9 13
+RIGHT_PAREN = F9 14
+CIRCLE_DOT = F9 15
+TRIANGLE = F9 16
+BIG_MULT_X = F9 17
+
+EMOJI_UNDERSCORE = F9 D0
+EMOJI_PIPE = F9 D1
+EMOJI_HIGHBAR = F9 D2
+EMOJI_TILDE = F9 D3
+EMOJI_LEFT_PAREN = F9 D4
+EMOJI_RIGHT_PAREN = F9 D5
+EMOJI_UNION = F9 D6
+EMOJI_GREATER_THAN = F9 D7
+EMOJI_LEFT_EYE = F9 D8
+EMOJI_RIGHT_EYE = F9 D9
+EMOJI_AT = F9 DA
+EMOJI_SEMICOLON = F9 DB
+EMOJI_PLUS = F9 DC
+EMOJI_MINUS = F9 DD
+EMOJI_EQUALS = F9 DE
+EMOJI_SPIRAL = F9 DF
+EMOJI_TONGUE = F9 E0
+EMOJI_TRIANGLE_OUTLINE = F9 E1
+EMOJI_ACUTE = F9 E2
+EMOJI_GRAVE = F9 E3
+EMOJI_CIRCLE = F9 E4
+EMOJI_TRIANGLE = F9 E5
+EMOJI_SQUARE = F9 E6
+EMOJI_HEART = F9 E7
+EMOJI_MOON = F9 E8
+EMOJI_NOTE = F9 E9
+EMOJI_BALL = F9 EA
+EMOJI_BOLT = F9 EB
+EMOJI_LEAF = F9 EC
+EMOJI_FIRE = F9 ED
+EMOJI_WATER = F9 EE
+EMOJI_LEFT_FIST = F9 EF
+EMOJI_RIGHT_FIST = F9 F0
+EMOJI_BIGWHEEL = F9 F1
+EMOJI_SMALLWHEEL = F9 F2
+EMOJI_SPHERE = F9 F3
+EMOJI_IRRITATED = F9 F4
+EMOJI_MISCHIEVOUS = F9 F5
+EMOJI_HAPPY = F9 F6
+EMOJI_ANGRY = F9 F7
+EMOJI_SURPRISED = F9 F8
+EMOJI_BIGSMILE = F9 F9
+EMOJI_EVIL = F9 FA
+EMOJI_TIRED = F9 FB
+EMOJI_NEUTRAL = F9 FC
+EMOJI_SHOCKED = F9 FD
+EMOJI_BIGANGER = F9 FE
+
+'\\l' = FA
+'\\p' = FB
+'\\n' = FE`;
+
+
+// ============================================================
+// DOM
+// ============================================================
+
+const editorTextarea = document.getElementById('editorTextarea');
+const lineNumbers = document.getElementById('lineNumbers');
+const lineAnalysisList = document.getElementById('lineAnalysisList');
+const targetLimitInput = document.getElementById('targetLimit');
+const overallStats = document.getElementById('overallStats');
+
+const copyBtn = document.getElementById('copyBtn');
+const copyHexBtn = document.getElementById('copyHexBtn');
+const clearBtn = document.getElementById('clearBtn');
+const autoWrapBtn = document.getElementById('autoWrapBtn');
+
+const toast = document.getElementById('toast');
+const toastMsg = document.getElementById('toastMsg');
+
+const hexInput = document.getElementById('hexInput');
+const autoEncodeToggle = document.getElementById('autoEncodeToggle');
+const tableInput = document.getElementById('tableInput');
+
+let targetLimit = 35;
+let charToHex = [];
+let hexToCharTrie = {};
+
+
+// ============================================================
+// Character Unit Calculation
+// ============================================================
+
+function calculateUnits(str) {
+
+    let units = 0;
+
+    for (let i = 0; i < str.length; i++) {
+
+        const charCode = str.charCodeAt(i);
+
+        if (
+            (charCode >= 0x0000 && charCode <= 0x007E) ||
+            (charCode >= 0xFF61 && charCode <= 0xFF9F)
+        ) {
+            units += 1;
+        } else {
+            units += 2;
+        }
+    }
+
+    return units;
+}
+
+
+// ============================================================
+// Toast
+// ============================================================
+
+function showToast(message) {
+
+    toastMsg.textContent = message;
+
+    toast.classList.remove(
+        'translate-y-16',
+        'opacity-0'
+    );
+
+    toast.classList.add(
+        'translate-y-0',
+        'opacity-100'
+    );
+
+    setTimeout(() => {
+
+        toast.classList.remove(
+            'translate-y-0',
+            'opacity-100'
+        );
+
+        toast.classList.add(
+            'translate-y-16',
+            'opacity-0'
+        );
+
+    }, 2000);
+}
+
+
+// ============================================================
+// Insert special character
+// ============================================================
+
+function insertChar(char) {
+
+    const start = editorTextarea.selectionStart;
+    const end = editorTextarea.selectionEnd;
+
+    const value = editorTextarea.value;
+
+    editorTextarea.value =
+        value.substring(0, start) +
+        char +
+        value.substring(end);
+
+    editorTextarea.selectionStart =
+        editorTextarea.selectionEnd =
+        start + char.length;
+
+    editorTextarea.focus();
+
+    updateEditor();
+}
+
+
+// ============================================================
+// Load TBL
+// ============================================================
+
+function loadTable(silent = false) {
+
+    const tableText = tableInput.value;
+
+    charToHex = [];
+    hexToCharTrie = {};
+
+    const lines = tableText.split('\n');
+
+    for (let line of lines) {
+
+        line = line.replace(/@.*/, '').trim();
+
+        if (!line) continue;
+
+        const parts = line.split('=');
+
+        if (parts.length !== 2) continue;
+
+        let key = parts[0].trim();
+
+        const hexVal = parts[1]
+            .trim()
+            .split(/\s+/)
+            .map(h => h.toUpperCase());
+
+        if (
+            key.startsWith("'") &&
+            key.endsWith("'") &&
+            key.length >= 2
+        ) {
+            key = key.slice(1, -1);
         }
 
-        /**
-         * Show toast message
-         */
-        function showToast(message) {
-            toastMsg.textContent = message;
-            toast.classList.remove('translate-y-16', 'opacity-0');
-            toast.classList.add('translate-y-0', 'opacity-100');
-            setTimeout(() => {
-                toast.classList.remove('translate-y-0', 'opacity-100');
-                toast.classList.add('translate-y-16', 'opacity-0');
-            }, 2500);
+        charToHex.push({
+            key,
+            bytes: hexVal
+        });
+
+        let current = hexToCharTrie;
+
+        for (const byte of hexVal) {
+
+            if (!current[byte]) {
+                current[byte] = {};
+            }
+
+            current = current[byte];
         }
 
-        /**
-         * Render editor metrics, line numbers, and line breakdown
-         */
-        function updateEditor() {
-            const text = editorTextarea.value;
-            const lines = text.split('\n');
-            targetLimit = parseInt(targetLimitInput.value, 10) || 35;
+        current._val = key;
+    }
 
-            // Update Line Numbers
-            const totalLines = lines.length;
-            let lineNumHTML = '';
-            for (let i = 1; i <= totalLines; i++) {
-                lineNumHTML += `${i}<br>`;
+    charToHex.sort(
+        (a, b) => b.key.length - a.key.length
+    );
+
+    if (!silent) {
+
+        showToast(
+            'TBLマッピングテーブルを再読み込みしました！'
+        );
+
+        if (autoEncodeToggle.checked) {
+            encodeText();
+        }
+    }
+}
+
+
+// ============================================================
+// Encode
+// ============================================================
+
+function encodeText() {
+
+    const input = editorTextarea.value;
+    const result = [];
+
+    let i = 0;
+
+    while (i < input.length) {
+
+        // 実際の改行 → FE
+        if (input[i] === '\n') {
+            result.push('FE');
+            i++;
+            continue;
+        }
+
+        let matched = false;
+
+        for (const mapping of charToHex) {
+
+            // 実際の改行はここでは処理しない
+            if (mapping.key === '\\n') {
+                continue;
             }
-            lineNumbers.innerHTML = lineNumHTML;
 
-            // Render Line Analysis List & calculate totals
-            lineAnalysisList.innerHTML = '';
-            let totalUnits = 0;
+            if (input.startsWith(mapping.key, i)) {
 
-            lines.forEach((lineText, index) => {
-                const units = calculateUnits(lineText);
-                totalUnits += units;
+                result.push(...mapping.bytes);
 
-                const lineNum = index + 1;
-                const percentage = Math.min(Math.round((units / targetLimit) * 100), 100);
+                i += mapping.key.length;
 
-                // Determine Status Color
-                let badgeClass = '';
-                let progressBg = '';
-                let borderClass = 'border-slate-800/80';
-                let statusText = '';
+                matched = true;
+                break;
+            }
+        }
 
-                if (units === targetLimit) {
-                    // Exact match
-                    badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-                    progressBg = 'bg-emerald-500';
-                    borderClass = 'border-emerald-500/40 bg-emerald-950/10';
-                    statusText = 'ぴったり';
-                } else if (units > targetLimit) {
-                    // Exceeded
-                    badgeClass = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
-                    progressBg = 'bg-rose-500';
-                    borderClass = 'border-rose-500/40 bg-rose-950/10';
-                    statusText = `+${units - targetLimit} オーバー`;
-                } else {
-                    // Under
-                    badgeClass = 'bg-sky-500/20 text-sky-400 border-sky-500/30';
-                    progressBg = 'bg-sky-500';
-                    statusText = `残り ${targetLimit - units}`;
+        if (!matched) {
+
+            result.push('??');
+
+            i++;
+        }
+    }
+
+    hexInput.value = result.join(' ');
+}
+
+
+// ============================================================
+// Decode
+// ============================================================
+
+function decodeHex() {
+
+    const input = hexInput.value.trim();
+
+    if (!input) return;
+
+    const hexArray = input
+        .split(/\s+/)
+        .map(h => h.toUpperCase().padStart(2, '0'));
+
+    let result = '';
+
+    let i = 0;
+
+    while (i < hexArray.length) {
+
+        let current = hexToCharTrie;
+
+        let matchedVal = null;
+        let matchLength = 0;
+
+        for (let j = i; j < hexArray.length; j++) {
+
+            const byte = hexArray[j];
+
+            if (current[byte]) {
+
+                current = current[byte];
+
+                if (current._val !== undefined) {
+
+                    matchedVal = current._val;
+                    matchLength = j - i + 1;
                 }
 
-                // Card Container for Line
-                const card = document.createElement('div');
-                card.className = `p-2.5 rounded-lg border ${borderClass} bg-slate-900/60 hover:bg-slate-900 transition flex flex-col gap-1.5`;
+            } else {
+                break;
+            }
+        }
 
-                card.innerHTML = `
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="font-mono text-slate-400 font-medium flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded bg-slate-800 flex items-center justify-center text-[11px] text-slate-300 font-bold">${lineNum}</span>
-                            行目
+        if (matchedVal !== null) {
+
+            if (matchedVal === '\\n') {
+
+                result += '\n';
+
+            } else {
+
+                result += matchedVal;
+            }
+
+            i += matchLength;
+
+        } else {
+
+            result += `[?${hexArray[i]}]`;
+
+            i++;
+        }
+    }
+
+    editorTextarea.value = result;
+
+    updateEditor();
+
+    showToast('Hexコードからデコードしました！');
+}
+
+
+// ============================================================
+// Editor Update
+// ============================================================
+
+function updateEditor() {
+
+    const text = editorTextarea.value;
+
+    const lines = text.split('\n');
+
+    targetLimit =
+        parseInt(targetLimitInput.value, 10) || 35;
+
+
+    // Line numbers
+
+    let lineNumHTML = '';
+
+    for (let i = 1; i <= lines.length; i++) {
+
+        lineNumHTML += `${i}<br>`;
+    }
+
+    lineNumbers.innerHTML = lineNumHTML;
+
+
+    // Analysis
+
+    lineAnalysisList.innerHTML = '';
+
+    let totalUnits = 0;
+
+    lines.forEach((lineText, index) => {
+
+        const units = calculateUnits(lineText);
+
+        totalUnits += units;
+
+        const lineNum = index + 1;
+
+        const percentage = Math.min(
+            Math.round((units / targetLimit) * 100),
+            100
+        );
+
+        let badgeClass = '';
+        let progressBg = '';
+        let borderClass = 'border-slate-800/80';
+        let statusText = '';
+
+        if (units === targetLimit) {
+
+            badgeClass =
+                'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+
+            progressBg = 'bg-emerald-500';
+
+            borderClass =
+                'border-emerald-500/40 bg-emerald-950/10';
+
+            statusText = 'ぴったり';
+
+        } else if (units > targetLimit) {
+
+            badgeClass =
+                'bg-rose-500/20 text-rose-400 border-rose-500/30';
+
+            progressBg = 'bg-rose-500';
+
+            borderClass =
+                'border-rose-500/40 bg-rose-950/10';
+
+            statusText =
+                `+${units - targetLimit} オーバー`;
+
+        } else {
+
+            badgeClass =
+                'bg-sky-500/20 text-sky-400 border-sky-500/30';
+
+            progressBg = 'bg-sky-500';
+
+            statusText =
+                `残り ${targetLimit - units}`;
+        }
+
+
+        const card = document.createElement('div');
+
+        card.className =
+            `p-2.5 rounded-lg border ${borderClass} bg-slate-900/60 hover:bg-slate-900 transition flex flex-col gap-1.5`;
+
+
+        card.innerHTML = `
+
+            <div class="flex items-center justify-between text-xs">
+
+                <span class="font-mono text-slate-400 font-medium flex items-center gap-1.5">
+
+                    <span class="w-5 h-5 rounded bg-slate-800 flex items-center justify-center text-[11px] text-slate-300 font-bold">
+                        ${lineNum}
+                    </span>
+
+                    行目
+
+                </span>
+
+
+                <div class="flex items-center gap-2">
+
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border ${badgeClass} font-medium">
+                        ${statusText}
+                    </span>
+
+                    <span class="font-mono font-bold ${
+                        units > targetLimit
+                            ? 'text-rose-400'
+                            : (
+                                units === targetLimit
+                                    ? 'text-emerald-400'
+                                    : 'text-slate-200'
+                            )
+                    }">
+
+                        ${units}
+
+                        <span class="text-slate-500 font-normal">
+                            / ${targetLimit}
                         </span>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[10px] px-1.5 py-0.5 rounded border ${badgeClass} font-medium">${statusText}</span>
-                            <span class="font-mono font-bold ${units > targetLimit ? 'text-rose-400' : (units === targetLimit ? 'text-emerald-400' : 'text-slate-200')}">
-                                ${units} <span class="text-slate-500 font-normal">/ ${targetLimit}</span>
-                            </span>
-                        </div>
-                    </div>
 
-                    <!-- Progress Bar -->
-                    <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                        <div class="${progressBg} h-1.5 rounded-full transition-all duration-200" style="width: ${percentage}%"></div>
-                    </div>
+                    </span>
 
-                    <!-- Preview Text snippet -->
-                    <div class="font-mono text-[11px] text-slate-400 truncate bg-slate-950/50 px-2 py-1 rounded border border-slate-800/50 mt-0.5">
-                        ${lineText.length > 0 ? escapeHtml(lineText) : '<span class="text-slate-600 font-sans italic">（空行）</span>'}
-                    </div>
-                `;
+                </div>
 
-                lineAnalysisList.appendChild(card);
-            });
+            </div>
 
-            // Overall Summary
-            overallStats.innerHTML = `全 <span class="text-indigo-400 font-bold">${totalLines}</span> 行 | 総カウント: <span class="text-indigo-400 font-bold">${totalUnits}</span> 文字分`;
-        }
 
-        /**
-         * Escape HTML to prevent injection in code preview
-         */
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
+            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
 
-        /**
-         * Auto-wrap algorithm that breaks lines precisely at targetLimit (35 units)
-         */
-        function autoWrapText() {
-            const currentText = editorTextarea.value;
-            if (!currentText.trim()) return;
+                <div
+                    class="${progressBg} h-1.5 rounded-full transition-all duration-200"
+                    style="width: ${percentage}%">
+                </div>
 
-            const lines = currentText.split('\n');
-            const newLines = [];
+            </div>
 
-            lines.forEach(line => {
-                let currentChunk = '';
-                let currentUnits = 0;
 
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    const charUnits = calculateUnits(char);
+            <div class="font-mono text-[11px] text-slate-400 truncate bg-slate-950/50 px-2 py-1 rounded border border-slate-800/50 mt-0.5">
 
-                    if (currentUnits + charUnits > targetLimit) {
-                        newLines.push(currentChunk);
-                        currentChunk = char;
-                        currentUnits = charUnits;
-                    } else {
-                        currentChunk += char;
-                        currentUnits += charUnits;
-                    }
+                ${
+                    lineText.length > 0
+                        ? escapeHtml(lineText)
+                        : '<span class="text-slate-600 font-sans italic">（空行）</span>'
                 }
-                newLines.push(currentChunk);
-            });
 
-            editorTextarea.value = newLines.join('\n');
-            updateEditor();
-            showToast(`${targetLimit}文字分ごとに自動改行しました！`);
+            </div>
+        `;
+
+        lineAnalysisList.appendChild(card);
+
+    });
+
+
+    overallStats.innerHTML =
+        `全 <span class="text-indigo-400 font-bold">${lines.length}</span> 行 | ` +
+        `総カウント: <span class="text-indigo-400 font-bold">${totalUnits}</span> 文字分`;
+
+
+    if (autoEncodeToggle.checked) {
+        encodeText();
+    }
+}
+
+
+// ============================================================
+// Escape HTML
+// ============================================================
+
+function escapeHtml(text) {
+
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+// ============================================================
+// Auto wrap
+// ============================================================
+
+function autoWrapText() {
+
+    const currentText = editorTextarea.value;
+
+    if (!currentText.trim()) return;
+
+    const lines = currentText.split('\n');
+
+    const newLines = [];
+
+    lines.forEach(line => {
+
+        let currentChunk = '';
+        let currentUnits = 0;
+
+        for (let i = 0; i < line.length; i++) {
+
+            const char = line[i];
+
+            const charUnits =
+                calculateUnits(char);
+
+            if (
+                currentUnits + charUnits >
+                targetLimit
+            ) {
+
+                newLines.push(currentChunk);
+
+                currentChunk = char;
+
+                currentUnits = charUnits;
+
+            } else {
+
+                currentChunk += char;
+
+                currentUnits += charUnits;
+            }
         }
 
-        // --- Event Listeners ---
+        newLines.push(currentChunk);
+    });
 
-        // Input listener for real-time counting
-        editorTextarea.addEventListener('input', updateEditor);
+    editorTextarea.value =
+        newLines.join('\n');
 
-        // Target limit update listener
-        targetLimitInput.addEventListener('input', () => {
-            if (targetLimitInput.value < 1) targetLimitInput.value = 1;
-            updateEditor();
-        });
+    updateEditor();
 
-        // Auto wrap button
-        autoWrapBtn.addEventListener('click', autoWrapText);
+    showToast(
+        `${targetLimit}文字分ごとに自動改行しました！`
+    );
+}
 
-        // Copy button using execCommand fallback
-        copyBtn.addEventListener('click', () => {
-            editorTextarea.select();
-            try {
-                document.execCommand('copy');
-                showToast('クリップボードにコピーしました！');
-            } catch (err) {
-                showToast('コピーに失敗しました');
-            }
-            window.getSelection().removeAllRanges();
-        });
 
-        // Clear button
-        clearBtn.addEventListener('click', () => {
-            if (editorTextarea.value && confirm('テキストをすべて消去しますか？')) {
-                editorTextarea.value = '';
-                updateEditor();
-                showToast('テキストを消去しました');
-            }
-        });
+// ============================================================
+// Copy text
+// ============================================================
 
-        // Default sample text loading on first visit
-        window.onload = function() {
-            editorTextarea.value = "A very high-grade Ball that offers\na higher Pokemon catch rate than\na great ball";
-            updateEditor();
-        };
-    </script>
+async function copyText() {
+
+    const text = editorTextarea.value;
+
+    if (!text) {
+
+        showToast('コピーするテキストがありません');
+
+        return;
+    }
+
+    try {
+
+        await navigator.clipboard.writeText(text);
+
+        showToast('テキストをコピーしました！');
+
+    } catch (err) {
+
+        editorTextarea.focus();
+
+        editorTextarea.select();
+
+        try {
+
+            document.execCommand('copy');
+
+            showToast('テキストをコピーしました！');
+
+        } catch (e) {
+
+            showToast('コピーに失敗しました');
+
+        }
+    }
+}
+
+
+// ============================================================
+// Copy Hex
+// ============================================================
+
+async function copyHex() {
+
+    const hex = hexInput.value.trim();
+
+    if (!hex) {
+
+        showToast('コピーするHexコードがありません');
+
+        return;
+    }
+
+    try {
+
+        await navigator.clipboard.writeText(hex);
+
+        showToast('Hexコードをコピーしました！');
+
+        copyHexBtn.innerHTML =
+            '<i class="fa-solid fa-check"></i> コピー済み';
+
+        setTimeout(() => {
+
+            copyHexBtn.innerHTML =
+                '<i class="fa-solid fa-copy"></i> コピー';
+
+        }, 1200);
+
+    } catch (err) {
+
+        hexInput.focus();
+
+        hexInput.select();
+
+        try {
+
+            document.execCommand('copy');
+
+            showToast('Hexコードをコピーしました！');
+
+        } catch (e) {
+
+            showToast('コピーに失敗しました');
+
+        }
+    }
+}
+
+
+// ============================================================
+// Clear
+// ============================================================
+
+function clearEditor() {
+
+    if (
+        editorTextarea.value &&
+        confirm('テキストをすべて消去しますか？')
+    ) {
+
+        editorTextarea.value = '';
+
+        hexInput.value = '';
+
+        updateEditor();
+
+        showToast('テキストを消去しました');
+    }
+}
+
+
+// ============================================================
+// Events
+// ============================================================
+
+editorTextarea.addEventListener(
+    'input',
+    updateEditor
+);
+
+targetLimitInput.addEventListener(
+    'input',
+    () => {
+
+        if (targetLimitInput.value < 1) {
+            targetLimitInput.value = 1;
+        }
+
+        updateEditor();
+    }
+);
+
+autoWrapBtn.addEventListener(
+    'click',
+    autoWrapText
+);
+
+copyBtn.addEventListener(
+    'click',
+    copyText
+);
+
+clearBtn.addEventListener(
+    'click',
+    clearEditor
+);
+
+
+// ============================================================
+// Init
+// ============================================================
+
+window.onload = function() {
+
+    tableInput.value =
+        initialMappingText;
+
+    loadTable(true);
+
+    editorTextarea.value =
+        "A very high-grade Ball that offers\n" +
+        "a higher Pokemon catch rate than\n" +
+        "a great ball";
+
+    updateEditor();
+};
+
+</script>
+
 </body>
 </html>
